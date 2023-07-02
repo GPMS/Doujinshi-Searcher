@@ -6,7 +6,7 @@ For now it only search for doujinshi in Japanese.
 
 ## How to use
 
-Install requirements in `requirements.txt` then run without arguments to search for recent doujinshi and authors that fit the user's preferences inside `config.json`:
+Install requirements in `requirements.txt` and the [Chrome Web Driver](https://chromedriver.chromium.org/downloads), then run without arguments to search for recent doujinshi and authors that fit the user's preferences inside `config.json`:
 ```console
 > run.bat
 ```
@@ -33,7 +33,7 @@ Options available to set in `config.json`:
 - **must_include_tags:** exclude doujinshi that don't contain all the given tags.
 - **must_exclude_tags:** exclude doujinshi that contain any of the given tags.
 - **must_include_characters:** exclude doujinshi that don't contain all the given characters.
-- **must_include_series:** exclude doujinshi that aren't of the given series. Can be set using `--series`.
+- **must_include_series:** exclude doujinshi that aren't of the given series. Can be set using `--series`.https://chromedriver.chromium.org/downloads
 - **artist_minimum_doujin_count:** minimum number of doujin an artist must have that fit the user's preferences.
 - **max_num_artists:** max number of artists a doujin can have (or 0 for any number).
 - **seen_series:** all series to search for, aside from the one in `must_include_series`. All others are ignored.
