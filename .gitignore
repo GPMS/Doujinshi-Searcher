@@ -1,0 +1,16 @@
+# Editor configs
+.vscode/
+/**/__pycache__/
+# Logs
+logs
+# Program output
+output/
+# Backup
+output-backup/
+config-backup.json
+# User configs
+config.json
+# My Files
+later.txt
+check-again/
+check_again.txt
