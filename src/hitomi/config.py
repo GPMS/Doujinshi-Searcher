@@ -37,7 +37,7 @@ class Config():
         # Whether the last search was incomplete, if true the search will resume
         self.incomplete = False
         # Whether to search for artists that fit the user's preferences as well as doujin
-        # Set to true to speed up doujin search
+        # Set to false to speed up doujin search
         self.check_artist = True
 
     def toJSON(self):
