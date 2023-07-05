@@ -1,4 +1,5 @@
 import codecs
+import os
 from hitomi import Artist, Doujinshi, Config, get_artist_name_from_url, Logger
 
 import firefox
@@ -8,36 +9,44 @@ import chrome
 def load_artists(config: Config,
                  browser: str):
 
-    ARTISTS_FOLDER = 'エロ/漫画/artists'
-    BEST_ARTISTS_FOLDER = 'エロ/漫画/artists/best'
+    ARTISTS_FOLDER = os.getenv("ARTISTS_FOLDER")
+    BEST_ARTISTS_FOLDER = os.getenv("BEST_ARTISTS_FOLDER")
 
-    artists: list[str] = []
-    was_found: bool = False
+    if ARTISTS_FOLDER:
+        artists: list[str] = []
+        was_found: bool = False
+        if browser == 'firefox':
+            artists, was_found = firefox.load_bookmarks(
+                f'toolbar/{ARTISTS_FOLDER}')
+        elif browser == 'chrome':
+            artists, was_found = chrome.load_bookmarks(ARTISTS_FOLDER)
 
-    if browser == 'firefox':
-        artists, was_found = firefox.load_bookmarks(
-            f'toolbar/{ARTISTS_FOLDER}')
-    elif browser == 'chrome':
-        artists, was_found = chrome.load_bookmarks(ARTISTS_FOLDER)
+        if was_found:
+            for artist_url in artists:
+                artist_name = get_artist_name_from_url(artist_url)
+                config.added_artists.add(artist_name)
+    else:
+        Logger.log_warn(
+            "Set 'ARTIST_FOLDER' variable in .env to load the added_artists list from your bookmarks")
 
-    if was_found:
-        for artist_url in artists:
-            artist_name = get_artist_name_from_url(artist_url)
-            config.added_artists.add(artist_name)
+    if BEST_ARTISTS_FOLDER:
+        best_artists: list[str] = []
+        was_found = False
 
-    best_artists: list[str] = []
-    was_found = False
+        if browser == 'firefox':
+            best_artists, was_found = firefox.load_bookmarks(
+                f'toolbar/{BEST_ARTISTS_FOLDER}')
+        elif browser == 'chrome':
+            best_artists, was_found = chrome.load_bookmarks(
+                BEST_ARTISTS_FOLDER)
 
-    if browser == 'firefox':
-        best_artists, was_found = firefox.load_bookmarks(
-            f'toolbar/{BEST_ARTISTS_FOLDER}')
-    elif browser == 'chrome':
-        best_artists, was_found = chrome.load_bookmarks(BEST_ARTISTS_FOLDER)
-
-    if was_found:
-        for artist_url in best_artists:
-            artist_name = get_artist_name_from_url(artist_url)
-            config.added_artists.add(artist_name)
+        if was_found:
+            for artist_url in best_artists:
+                artist_name = get_artist_name_from_url(artist_url)
+                config.added_artists.add(artist_name)
+    else:
+        Logger.log_warn(
+            "Set 'BEST_ARTIST_FOLDER' variable in .env to load the added_artists list from your bookmarks")
 
 
 def export_lists(config: Config,

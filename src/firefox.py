@@ -1,4 +1,5 @@
 import sqlite3
+import os
 
 import hitomi
 
@@ -68,7 +69,11 @@ def get_urls(conn, bookmark_directory_id):
 
 
 def load_bookmarks(path: str) -> tuple[list[str], bool]:
-    FIREFOX_PROFILE_PATH = "C:/Users/gabriel/AppData/Roaming/Mozilla/Firefox/Profiles/7aaicssr.default-1664887030248"
+    FIREFOX_PROFILE_PATH = os.getenv("FIREFOX_PROFILE_PATH")
+    if FIREFOX_PROFILE_PATH is None:
+        hitomi.Logger.log_warn(
+            "Set 'FIREFOX_PROFILE_PATH' variable in .env to load added_artists and read_doujinshi from your bookmarks")
+        return [], False
 
     try:
         database_path = f"{FIREFOX_PROFILE_PATH}/places.sqlite"

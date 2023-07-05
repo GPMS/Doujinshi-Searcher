@@ -6,7 +6,24 @@ For now it only search for doujinshi in Japanese.
 
 ## How to use
 
-Install requirements in `requirements.txt` and the [Chrome Web Driver](https://chromedriver.chromium.org/downloads), then run without arguments to search for recent doujinshi and authors that fit the user's preferences inside `config.json`:
+Install requirements in `requirements.txt` and the [Chrome Web Driver](https://chromedriver.chromium.org/downloads).
+
+Set up environment variables in .env at the root folder:
+
+```properties
+# Either 'chrome' or 'firefox'
+BROWSER_NAME="chrome"
+# Only for firefox
+FIREFOX_PROFILE_PATH="C:\Users\(...)"
+# Bookmark folder paths
+ARTISTS_FOLDER="my_doujinshi/artists"
+BEST_ARTISTS_FOLDER="my_doujinshi/artists/best"
+# Get from your selected browser folder
+ADDBLOCK_PATH="C:\Addblock"
+```
+
+Run without arguments to search for recent doujinshi and authors that fit the user's preferences inside `config.json`:
+
 ```console
 > run.bat
 ```

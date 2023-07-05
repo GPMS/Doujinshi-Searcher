@@ -25,11 +25,11 @@ class Navigator:
 
     def __init__(self, load_images=False):
         options = Options()
-        ADDBLOCK_PATH = "H:/AddBlock"
-        if os.path.exists(ADDBLOCK_PATH):
+        ADDBLOCK_PATH = os.getenv("ADDBLOK_PATH")
+        if ADDBLOCK_PATH and os.path.exists(ADDBLOCK_PATH):
             options.add_argument(f"load-extension={ADDBLOCK_PATH}")
         else:
-            Logger.log_warn("Set addblock path\n")
+            Logger.log_warn("Set 'ADDBLOCK_PATH' path in .env\n")
         WINDOW_SIZE = "1920,1080"
         options.add_argument("--lang=en-GB")
         options.add_argument("--headless")

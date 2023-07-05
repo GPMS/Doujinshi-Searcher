@@ -5,12 +5,14 @@ import time
 import argparse
 import os
 import shutil
+from pathlib import Path
+from dotenv import load_dotenv
 
 import bookmarks
 import serialization
 import hitomi
 
-BROWSER_NAME: str = "chrome"
+BROWSER_NAME = os.getenv("BROWSER_NAME")
 
 
 def load_config():
@@ -60,7 +62,11 @@ def load_config():
             config.stop_title = lines[1]
 
     hitomi.Logger.log("Loading artists\n")
-    bookmarks.load_artists(config, BROWSER_NAME)
+    if BROWSER_NAME:
+        bookmarks.load_artists(config, BROWSER_NAME)
+    else:
+        hitomi.Logger.log_warn(
+            "Set variable 'BROWSER_NAME' in .env to load added_artists and read_doujinshi from your bookmarks")
 
     serialization.dump_config_file(config)
     return config
@@ -443,10 +449,9 @@ USE_TERMINAL = False
 
 
 def main():
-    if USE_TERMINAL:
-        hitomi.Logger.use_terminal()
-    else:
-        hitomi.Logger.start_logger()
+    dotenv_path = Path("../.env")
+    load_dotenv(dotenv_path=dotenv_path)
+
     parser = argparse.ArgumentParser(
         prog="SearchDoujinshi",
         description="Scrape doujinshi from hitomi.la")

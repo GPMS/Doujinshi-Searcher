@@ -1,3 +1,4 @@
 chrome_bookmarks>=2020.10.25
 selenium>=4.6.0
 webdriver_manager>=3.8.5
+python-dotenv>=0.21.0
