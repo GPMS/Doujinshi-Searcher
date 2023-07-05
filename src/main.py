@@ -445,9 +445,6 @@ def look_for_all_series():
             hitomi.Logger.stop_logger()
 
 
-USE_TERMINAL = False
-
-
 def main():
     dotenv_path = Path("../.env")
     load_dotenv(dotenv_path=dotenv_path)
@@ -455,11 +452,17 @@ def main():
     parser = argparse.ArgumentParser(
         prog="SearchDoujinshi",
         description="Scrape doujinshi from hitomi.la")
+    parser.add_argument("--term", action="store_false",
+                        help="Print log to terminal instead to a log file")
     parser.add_argument("--check", action="store_true",
                         help="check if links in seen_series are correct")
     parser.add_argument("--series",
                         help="Search only for doujinshi in the given series")
     args = parser.parse_args()
+    if args.term:
+        hitomi.Logger.use_terminal()
+    else:
+        hitomi.Logger.start_logger()
     if args.check:
         check_seen_series_link()
     else:
@@ -468,7 +471,7 @@ def main():
         if args.series:
             config.must_include_series = args.series
         search_doujin(config)
-    if not USE_TERMINAL:
+    if not args.term:
         hitomi.Logger.stop_logger()
 
 
