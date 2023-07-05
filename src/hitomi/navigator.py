@@ -139,7 +139,7 @@ def download_doujin(url: str, doujin: Doujinshi | None = None):
     except FileExistsError:
         pass
     while current_page <= last_page:
-        print(f"Page {current_page}")
+        Logger.log(f"Page {current_page}")
         wait_for_loaded_image(navigator.browser)
         with open(f"{doujin.name}/{current_page}.png", 'wb') as file:
             file.write(navigator.find(".lillie").screenshot_as_png)

@@ -412,7 +412,7 @@ def look_for_all_series():
 
     try:
         for name in series:
-            print(name)
+            hitomi.Logger.log(name)
             if not use_terminal:
                 hitomi.Logger.start_logger(f"log-{name.replace(' ', '_')}.txt")
             config = load_config()
