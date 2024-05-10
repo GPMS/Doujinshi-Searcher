@@ -190,6 +190,11 @@ def search_homepage(config: hitomi.Config,
 
         seen_artists.add(artist.name)
 
+    navigator = hitomi.Navigator()
+
+    url = hitomi.generate_url(config)
+    hitomi.Logger.log(f"Searching page: {url}\n")
+
     count = 0
     lists = lists
     config = config
@@ -198,15 +203,6 @@ def search_homepage(config: hitomi.Config,
     new_stop_title = str(config.stop_title)
     seen_artists = set(config.added_artists)
 
-    navigator = hitomi.Navigator()
-
-    # If only searching for a single series, search the series page directly
-    if config.must_include_series:
-        config.seen_series.add(config.must_include_series)
-        url = hitomi.get_url_from_series_name(config.must_include_series)
-    else:
-        url = "https://hitomi.la/search.html?language%3Ajapanese%20-male%3Ayaoi%20-female%3Ascat%20-female%3Afutanari%20-female%3Afarting%20-male%3Agender_change%20-female%3Aguro"
-    hitomi.Logger.log(f"Searching page: {url}\n")
     iterator = hitomi.DoujinIterator(navigator, url)
     for i, doujin in iterator.next():
         is_searching_specific_series = config.must_include_series != ""

@@ -5,6 +5,7 @@ from .logger import Logger
 
 class Config():
     def __init__(self):
+        self.language = ["日本語", "japanese"]
         # Types a doujin must not contain (doujinshi, original, game cg, etc)
         self.must_exclude_type = set()
         # Tags a doujin must have

@@ -19,6 +19,38 @@ from selenium.webdriver.common.keys import Keys
 
 from .doujinshi import Doujinshi
 from .logger import Logger
+from .config import Config
+
+
+def generate_url(config: Config):
+    def tag_to_search_param(tag: str, exclude: bool):
+        string = ""
+        if "♀" in tag:
+            string = f"female%3A{tag.replace(' ♀', '')}"
+        elif "♂" in tag:
+            string = f"male%3A{tag.replace(' ♂', '')}"
+        else:
+            string = f"tag%3A{tag}"
+        return f"%20{'-' if exclude else ''}{string.replace(' ', '_')}"
+
+    search_params = ""
+    if config.must_include_series:
+        search_params += f"series%3A{config.must_include_series.replace(' ', '_')}"
+    if config.language:
+        search_params += f"language%3A{config.language[1]}"
+    for type in config.must_exclude_type:
+        search_params += f"%20-type%3A{type.replace(' ', '')}"
+    for include_tag in config.must_include_tags:
+        search_params += tag_to_search_param(include_tag, False)
+    for exclude_tag in config.must_exclude_tags:
+        search_params += tag_to_search_param(exclude_tag, True)
+
+    base_url = "https://hitomi.la"
+
+    if len(search_params) > 0:
+        return f"{base_url}/search.html?{search_params}"
+    else:
+        return base_url
 
 
 class Navigator:
