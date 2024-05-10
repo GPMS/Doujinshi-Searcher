@@ -12,6 +12,8 @@ import bookmarks
 import serialization
 import hitomi
 
+dotenv_path = Path(".", ".env")
+load_dotenv(dotenv_path=dotenv_path)
 BROWSER_NAME = os.getenv("BROWSER_NAME")
 
 
