@@ -34,15 +34,15 @@ def generate_url(config: Config):
         return f"%20{'-' if exclude else ''}{string.replace(' ', '_')}"
 
     search_params = ""
-    if config.must_include_series:
-        search_params += f"series%3A{config.must_include_series.replace(' ', '_')}"
-    if config.language:
-        search_params += f"language%3A{config.language[1]}"
-    for type in config.must_exclude_type:
+    if config.filters.must_include_series:
+        search_params += f"series%3A{config.filters.must_include_series.replace(' ', '_')}"
+    if config.filters.language:
+        search_params += f"language%3A{config.filters.language[1]}"
+    for type in config.filters.must_exclude_type:
         search_params += f"%20-type%3A{type.replace(' ', '')}"
-    for include_tag in config.must_include_tags:
+    for include_tag in config.filters.must_include_tags:
         search_params += tag_to_search_param(include_tag, False)
-    for exclude_tag in config.must_exclude_tags:
+    for exclude_tag in config.filters.must_exclude_tags:
         search_params += tag_to_search_param(exclude_tag, True)
 
     base_url = "https://hitomi.la"
