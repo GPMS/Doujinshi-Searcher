@@ -15,7 +15,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.support.ui import Select
+from selenium.webdriver.support.select import Select
 
 from .doujinshi import Doujinshi
 from .logger import Logger

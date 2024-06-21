@@ -9,7 +9,7 @@ class MyJsonEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, Doujinshi) or isinstance(obj, Artist) or isinstance(obj, Config):
             return obj.toJSON()
-        return super(MyJsonEncoder, self).dumps(obj, ensure_ascii=False, indent=4)
+        return json.dumps(obj, ensure_ascii=False, indent=4)
 
 
 def loadJson(path: Path | str):

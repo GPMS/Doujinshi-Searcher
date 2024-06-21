@@ -1,6 +1,7 @@
 from pathlib import Path
 import json
 from .chrome import load_bookmarks_chromium
+from datetime import datetime, timedelta, timezone
 
 
 def dateFromWebkit(timestamp):
@@ -58,7 +59,6 @@ class Item(dict):
 
 class Bookmarks:
     """Bookmarks class. attrs: `path`. properties: `folders`, `urls`"""
-    path = None
 
     def __init__(self, path: Path | str):
         self.path = path
