@@ -159,19 +159,10 @@ class Navigator:
             return False
 
 
-def wait_for_loaded_image(driver, timeout_seconds=30):
+def wait_for_loaded_image(driver: webdriver.Remote, timeout_seconds=30):
+    img = driver.find_element(By.CSS_SELECTOR, "img.lillie")
     seconds_awaited = 0
-    img_path = driver.execute_script(
-        "return document.querySelector('img.lillie').src;")
-    all_images: list[WebElement] = driver.execute_script(
-        "return document.images;")
-    img_idx = -1
-    for idx, image in enumerate(all_images):
-        if image.get_attribute('src') == img_path:
-            img_idx = idx
-    if img_idx == -1:
-        exit(1)
-    while not driver.execute_script(f"return document.images[{img_idx}].complete;"):
+    while not img.get_property("complete"):
         time.sleep(1)
         seconds_awaited += 1
         if seconds_awaited > timeout_seconds:
@@ -230,7 +221,7 @@ def download_doujin(url: str, navigator: Navigator | None = None, pages_interval
             Logger.log(f"\tPage {current_page}\n")
             wait_for_loaded_image(navigator.browser)
             with Path(output_dir, f"pages/{current_page}.png").open('wb') as file:
-                file.write(navigator.find(".lillie").screenshot_as_png)
+                file.write(navigator.find("img.lillie").screenshot_as_png)
             navigator.find("#nextPanel", wait=True).click()
             current_page += 1
     except Exception as e:
