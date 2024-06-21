@@ -102,37 +102,46 @@ class Navigator:
             self.browser.quit()
 
     def get_current_url(self):
+        assert (self.browser != None)
         return self.browser.current_url
 
     def load(self, url: str):
+        assert (self.browser != None)
         self.browser.get(url)
 
     def refresh(self):
+        assert (self.browser != None)
         self.browser.refresh()
 
     def find(self, selector: str, type=By.CSS_SELECTOR, wait=False):
+        assert (self.browser != None)
         if wait:
             return self.wait.until(EC.visibility_of_element_located((type, selector)))
         return self.browser.find_element(type, selector)
 
     def find_all(self, xpath: str, type=By.CSS_SELECTOR, wait=False):
+        assert (self.browser != None)
         if wait:
             return self.wait.until(EC.presence_of_all_elements_located((type, xpath)))
         return self.browser.find_elements(type, xpath)
 
     def __get_current_tab_index(self) -> int:
+        assert (self.browser != None)
         for i, handle in enumerate(self.browser.window_handles):
             if handle == self.browser.current_window_handle:
                 return i
         raise (Exception("No current window handle"))
 
     def get_current_handle(self) -> str:
+        assert (self.browser != None)
         return self.browser.current_window_handle
 
     def open_new_tab(self):
+        assert (self.browser != None)
         self.browser.switch_to.new_window("tab")
 
     def close_tab(self):
+        assert (self.browser != None)
         current_tab_index = self.__get_current_tab_index()
         self.browser.close()
         current_tab_index = current_tab_index-1
@@ -140,6 +149,7 @@ class Navigator:
             self.browser.window_handles[current_tab_index])
 
     def can_load_url(self, url: str):
+        assert (self.browser != None)
         self.browser.get(url)
         try:
             titles = self.wait.until(EC.presence_of_all_elements_located(
@@ -172,6 +182,7 @@ def download_doujin(url: str, navigator: Navigator | None = None, pages_interval
     try:
         if navigator is None:
             navigator = Navigator(load_images=True)
+        assert (navigator.browser != None)
         navigator.load(url)
         doujin = Doujinshi()
         doujin.url = url
