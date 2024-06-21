@@ -37,6 +37,12 @@ class Artist:
         }
 
     @classmethod
+    def to_yaml(cls, dumper, data):
+        if not isinstance(data, Artist):
+            return
+        return dumper.represent_mapping("tag:yaml.org,2002:map", data.toJSON())
+
+    @classmethod
     def fromJSON(cls, json_data: dict):
         if len(json_data.keys()) == 0:
             return None

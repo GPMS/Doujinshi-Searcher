@@ -1,13 +1,13 @@
-import os
+from pathlib import Path
 import codecs
 import re
 
-DIR = "check-again/groups"
+DIR = Path("check-again/groups")
 
 
 def merge_bookmark(bookmark_files: list[str]):
     seen_urls = set()
-    with codecs.open(os.path.join(DIR, f"merged.html"), 'w', 'utf-8') as output:
+    with codecs.open(str(Path(DIR, "merged.html")), 'w', 'utf-8') as output:
         # Write header
         output.write(
             '<!DOCTYPE NETSCAPE-Bookmark-file-1>\n'
@@ -17,7 +17,7 @@ def merge_bookmark(bookmark_files: list[str]):
             '<DL><p>\n'
         )
         for file in bookmark_files:
-            with codecs.open(os.path.join(DIR, file), 'r', 'utf-8') as input:
+            with codecs.open(str(Path(DIR, file)), 'r', 'utf-8') as input:
                 for line_number, line in enumerate(input):
                     # Skip header and last closing line
                     if line_number < 5 or line == "</DL><p>\n":
@@ -48,9 +48,9 @@ def get_index(group_name: str):
 
 if __name__ == "__main__":
     files: list[str] = []
-    for filename in os.listdir(DIR):
-        if not filename.endswith(".html") or filename == "merged.html":
+    for file in DIR.iterdir():
+        if not file.name.endswith(".html") or file.name == "merged.html":
             continue
-        files.append(filename)
+        files.append(file.name)
     files.sort(key=get_index)
     merge_bookmark(files)

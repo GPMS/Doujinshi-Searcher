@@ -1,6 +1,7 @@
 from datetime import datetime
+import urllib.parse
 
-from .config import Config
+from .config import Filters
 from .logger import Logger
 
 
@@ -18,19 +19,41 @@ class Doujinshi:
         self.exclude_reasons: list[str] = []
 
     def __str__(self):
-        desc = f"""{self.name}\
-            \n\tArtists:{self.artists}\
-            \n\tGroups:{self.groups}\
-            \n\tSeries:{self.series}\
-            \n\tType:{self.type}\
-            \n\tCharacters:{self.characters}\
-            \n\tTags:{self.tags}]\
-            \n\tDate:{self.date.strftime('%d %b %Y, %H:%M')}"""
-        if len(self.exclude_reasons) > 0:
-            desc += f"\n\tExclude Reason: {self.exclude_reasons}"
+        desc = ""
+        desc += f"{self.name}"
+
+        dict = self.toJSON()
+        for key in dict.keys():
+            if key == "name":
+                continue
+            elif key == "exclude_reasons" and len(dict[key]) == 0:
+                continue
+            if not dict[key]:
+                continue
+            desc += f"\n\t{key}: {dict[key]}"
         return desc
 
-    def can_add(self, config: Config) -> bool:
+    def __eq__(self, other):
+        if not isinstance(other, Doujinshi):
+            return NotImplemented
+        return self.url == other.url
+
+    def __ne__(self, other):
+        return (not self.__eq__(other))
+
+    def __hash__(self):
+        return hash(self.url)
+
+    def could_be_anthology(self):
+        '''
+        Check whether doujin could be a compilation of multiple doujin
+        '''
+        return len(self.artists) > 2
+
+    def matches(self, filter: Filters) -> bool:
+        '''
+        Check if doujin passes all filters set by the Config
+        '''
         def CommonItems(lst, items):
             common = []
             for item in items:
@@ -55,47 +78,52 @@ class Doujinshi:
         can_add = True
 
         is_forbidden_type = any(
-            t == self.type for t in config.must_exclude_type)
+            t == self.type for t in filter.must_exclude_type)
         if is_forbidden_type:
             can_add = False
             self.exclude_reasons.append(f"Is of type {self.type}")
 
-        forbidden_tags = CommonItems(self.tags, config.must_exclude_tags)
+        forbidden_tags = CommonItems(self.tags, filter.must_exclude_tags)
         if len(forbidden_tags) > 0:
             can_add = False
             self.exclude_reasons.append(f"Contains tags {forbidden_tags}")
 
-        missing_tags = MissingItems(self.tags, config.must_include_tags)
+        missing_tags = MissingItems(self.tags, filter.must_include_tags)
         if len(missing_tags) > 0:
             can_add = False
             self.exclude_reasons.append(f"Doesn't contain tags {missing_tags}")
 
-        if config.must_include_series:
+        if filter.must_include_series:
             includes_series = False
             for name in self.series:
-                if name == config.must_include_series:
+                if name == filter.must_include_series:
                     includes_series = True
             if not includes_series:
                 can_add = False
                 self.exclude_reasons.append(
-                    f"Doesn't contain series {config.must_include_series}")
+                    f"Doesn't contain series {filter.must_include_series}")
 
         missing_characters = MissingItems(
-            self.characters, config.must_include_characters)
+            self.characters, filter.must_include_characters)
         if len(missing_characters) > 0:
             can_add = False
             self.exclude_reasons.append(
                 f"Doesn't contain characters {missing_characters}")
 
-        if config.max_num_artists > 0 and len(self.artists) > config.max_num_artists:
+        if filter.max_num_artists > 0 and len(self.artists) > filter.max_num_artists:
             can_add = False
             self.exclude_reasons.append(
-                f"More than {config.max_num_artists} artists")
+                f"More than {filter.max_num_artists} artists")
 
         return can_add
 
     def toJSON(self):
+        # Don't modify original __dict__
         my_dict = dict(self.__dict__)
+
+        # Remove empty entries
+        my_dict = {k: v for k, v in my_dict.items() if v}
+
         my_dict['date'] = self.date.strftime('%d %b %Y, %H:%M')
         return my_dict
 
@@ -110,10 +138,11 @@ class Doujinshi:
                 Logger.log_warn(
                     f"Unknown doujinshi key '{key}', skipping...\n")
                 continue
-            variable = getattr(doujinshi, key)
-            if isinstance(variable, datetime):
+            data = json_data[key]
+            correct_type = type(getattr(doujinshi, key))
+            if correct_type == datetime:
                 setattr(doujinshi, key, datetime.strptime(
-                    json_data[key], '%d %b %Y, %H:%M'))
+                    data, '%d %b %Y, %H:%M'))
             else:
-                setattr(doujinshi, key, json_data[key])
+                setattr(doujinshi, key, data)
         return doujinshi
