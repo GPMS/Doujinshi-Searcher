@@ -1,4 +1,5 @@
-import os
+from os import getenv
+from pathlib import Path
 import sys
 from datetime import datetime
 from typing import Callable
@@ -7,15 +8,14 @@ import time
 
 import selenium.common.exceptions as WebException
 from selenium import webdriver
+from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
-from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import Select
-from selenium.webdriver.common.keys import Keys
 
 from .doujinshi import Doujinshi
 from .logger import Logger
@@ -57,8 +57,8 @@ class Navigator:
 
     def __init__(self, load_images=False):
         options = Options()
-        ADDBLOCK_PATH = os.getenv("ADDBLOK_PATH")
-        if ADDBLOCK_PATH and os.path.exists(ADDBLOCK_PATH):
+        ADDBLOCK_PATH = getenv("ADDBLOCK_PATH")
+        if ADDBLOCK_PATH and Path(ADDBLOCK_PATH).exists():
             options.add_argument(f"load-extension={ADDBLOCK_PATH}")
         else:
             Logger.log_warn("Set 'ADDBLOCK_PATH' path in .env\n")
@@ -74,13 +74,24 @@ class Navigator:
         options.add_argument("--allow-insecure-localhost")
         options.add_argument("log-level=3")
         options.add_argument(f"--window-size={WINDOW_SIZE}")
+        if getenv("BROWSER_NAME") == "brave":
+            options.binary_location = str(
+                Path("C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe"))
+        self.browser: webdriver.Chrome | None = None
         try:
             self.browser = webdriver.Chrome(service=ChromeService(
                 ChromeDriverManager().install()), options=options)
             Logger.log("Open browser\n")
         except Exception as e:
-            Logger.log_warn(f"{e}\n")
-            sys.exit()
+            try:
+                Logger.log_warn(
+                    "ChromeDriverManager failed, trying local version...\n")
+                self.browser = webdriver.Chrome(service=ChromeService(
+                    "H:/chromedriver_win32/chromedriver.exe"), options=options)
+                Logger.log("Open browser\n")
+            except Exception as e:
+                Logger.log_warn(f"Could not open browser: {e}\n")
+                sys.exit()
         self.browser.create_options()
         self.wait = WebDriverWait(self.browser, 30)
         Logger.log("Created browser\n")
@@ -140,43 +151,278 @@ class Navigator:
 
 def wait_for_loaded_image(driver, timeout_seconds=30):
     seconds_awaited = 0
-    while not driver.execute_script("return document.images[6].complete;"):
+    img_path = driver.execute_script(
+        "return document.querySelector('img.lillie').src;")
+    all_images: list[WebElement] = driver.execute_script(
+        "return document.images;")
+    img_idx = -1
+    for idx, image in enumerate(all_images):
+        if image.get_attribute('src') == img_path:
+            img_idx = idx
+    if img_idx == -1:
+        exit(1)
+    while not driver.execute_script(f"return document.images[{img_idx}].complete;"):
         time.sleep(1)
         seconds_awaited += 1
         if seconds_awaited > timeout_seconds:
             raise (TimeoutError)
 
 
-def download_doujin(url: str, doujin: Doujinshi | None = None):
-    navigator = Navigator(load_images=True)
-    navigator.load(url)
-    doujin = Doujinshi()
-    doujin.url = url
-    doujin.name = navigator.find("#gallery-brand a", wait=True).text
-    doujin.type = navigator.find("#type a").text
-    doujin.groups.extend([l.text.lower()
-                         for l in navigator.find_all("#groups a")])
-    doujin.series.extend([l.text.lower()
-                          for l in navigator.find_all("#series a")])
-    doujin.characters.extend([l.text.lower()
-                              for l in navigator.find_all("#characters a")])
-    doujin.tags.extend([l.text.lower() for l in navigator.find_all("#tags a")])
-    navigator.find(".simplePagerPage1 a", wait=True).click()
-    all_pages = Select(navigator.find(
-        "#single-page-select", wait=True)).options
-    last_page = int(all_pages[-1].text.split(" ")[-1])
-    current_page = 1
+def download_doujin(url: str, navigator: Navigator | None = None, pages_interval: list[tuple[int, int]] = []) -> Doujinshi | None:
     try:
-        os.mkdir(doujin.name)
-    except FileExistsError:
+        if navigator is None:
+            navigator = Navigator(load_images=True)
+        navigator.load(url)
+        doujin = Doujinshi()
+        doujin.url = url
+        doujin.name = navigator.find("#gallery-brand a", wait=True).text
+        Logger.log(f"Downloading {doujin.name}\n")
+        doujin.type = navigator.find("#type a").text
+        doujin.artists.extend([l.text.lower()
+                              for l in navigator.find_all("#artists a")])
+        doujin.groups.extend([l.text.lower()
+                              for l in navigator.find_all("#groups a")])
+        doujin.series.extend([l.text.lower()
+                              for l in navigator.find_all("#series a")])
+        doujin.characters.extend([l.text.lower()
+                                  for l in navigator.find_all("#characters a")])
+        doujin.tags.extend([l.text.lower()
+                           for l in navigator.find_all("#tags a")])
+        navigator.find(".simplePagerPage1 a", wait=True).click()
+        page_selector = Select(navigator.find(
+            "#single-page-select", wait=True))
+        all_pages = page_selector.options
+        last_page = int(all_pages[-1].text.split(" ")[-1])
+        for (start, end) in pages_interval:
+            if start > last_page or end > last_page:
+                Logger.log_error(f"Invalid interval {start}-{end}")
+                return
+        current_page = 1
+        output_dir = Path(f"output/downloaded/{doujin.name}")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        Path(output_dir, "pages").mkdir(exist_ok=True)
+        current_interval = 0
+        while current_page <= last_page:
+            if len(pages_interval) > 0:
+                if current_interval == len(pages_interval):
+                    # No more intervals
+                    break
+                (start, end) = pages_interval[current_interval]
+                if current_page < start:
+                    # Jump to start
+                    page_selector.select_by_index(start-1)
+                    current_page = start
+                    continue
+                if current_page == end:
+                    # Finished interval, prepare next
+                    current_interval += 1
+            Logger.log(f"\tPage {current_page}\n")
+            wait_for_loaded_image(navigator.browser)
+            with Path(output_dir, f"pages/{current_page}.png").open('wb') as file:
+                file.write(navigator.find(".lillie").screenshot_as_png)
+            navigator.find("#nextPanel", wait=True).click()
+            current_page += 1
+    except Exception as e:
+        Logger.log_error(f"Could not download images from {url}: {e}\n")
+        return None
+    with Path(output_dir, "info.yaml").open("w", encoding="utf8") as f:
+        dict = doujin.toJSON()
+        f.write(f"name: {doujin.name}\n")
+        f.write(f"url: {doujin.url}\n")
+        f.write(f"type: {doujin.type}\n")
+        if 'groups' in dict:
+            f.write(f"group: {dict['groups'][0]}\n")
+        if 'artists' in dict:
+            f.write(f"artists: {dict['artists']}\n")
+        if 'series' in dict:
+            f.write(f"series: {dict['series']}\n")
+        if 'characters' in dict:
+            f.write(f"characters: {dict['characters']}\n")
+        if 'tags' in dict:
+            f.write(f"tags: {dict['tags']}\n")
+    return doujin
+
+
+def ConvertDatetime(original_dt: str):
+    # This site uses multiple date formats
+    # 2017-09-30 23:14:00-06
+    try:
+        return datetime.strptime(original_dt[:-4], "%Y-%m-%d %H:%M:%S")
+    except:
         pass
-    while current_page <= last_page:
-        Logger.log(f"Page {current_page}")
-        wait_for_loaded_image(navigator.browser)
-        with open(f"{doujin.name}/{current_page}.png", 'wb') as file:
-            file.write(navigator.find(".lillie").screenshot_as_png)
-        navigator.find("#nextPanel").click()
-        current_page += 1
+    # 30 Sept 2017, 23:14
+    try:
+        weirdDate = original_dt.split(" ")
+        monthName = weirdDate[1]
+        if monthName == "Sept":
+            monthName = "Sep"
+        correctDate = f"{weirdDate[0]} {monthName} {weirdDate[2]} {weirdDate[3]}"
+        return datetime.strptime(correctDate, "%d %b %Y, %H:%M")
+    except IndexError:
+        print(
+            f"ConvertDatetime: Index Error\n original:{original_dt}\n weirdDate:{weirdDate}")
+        raise (IndexError)
+
+
+class DoujinPage():
+    def __init__(self, url: str, navigator: Navigator):
+        self.url = url
+        self.navigator = navigator
+        self.doujin: Doujinshi | None = None
+        self.navigator.load(url)
+        # Wait until elements are loaded
+        try:
+            self.name = self.navigator.find("#gallery-brand", wait=True).text
+        except WebException.TimeoutException:
+            raise TimeoutError("Timeout loading doujin page")
+
+    def load_name(self):
+        return self.name
+
+    def load_type(self):
+        return self.navigator.find("#type").text.lower()
+
+    def _load_children_link_text(self, parent_id: str, blank_value: str):
+        """
+        Return the text of all links that are children to
+        the element with CSS id `parent_id`
+        """
+        children_text: list[str] = []
+        parent = self.navigator.find(parent_id, By.ID)
+        if parent.text == blank_value:
+            return children_text
+        for child in parent.find_elements(By.TAG_NAME, "a"):
+            children_text.append(child.text.lower())
+        return children_text
+
+    def load_series(self):
+        return self._load_children_link_text("series", "N/A")
+
+    def load_artists(self):
+        return self._load_children_link_text("artists", "N/A")
+
+    def load_groups(self):
+        return self._load_children_link_text("groups", "N/A")
+
+    def load_characters(self):
+        return self._load_children_link_text("characters", "")
+
+    def load_tags(self):
+        return self._load_children_link_text("tags", "")
+
+    def load_date(self):
+        raw_date: str = self.navigator.find(".date").text
+        return ConvertDatetime(raw_date)
+
+    def load_doujin(self):
+        doujin = Doujinshi()
+        doujin.url = self.url
+        doujin.type = self.load_type()
+        doujin.series = self.load_series()
+        doujin.name = self.load_name()
+        doujin.artists = self.load_artists()
+        doujin.groups = self.load_groups()
+        doujin.characters = self.load_characters()
+        doujin.tags = self.load_tags()
+        doujin.date = self.load_date()
+        return doujin
+
+
+class DoujinListPage():
+    def __init__(self, navigator: Navigator, url: str):
+        self.navigator = navigator
+        self.url = url
+        self.doujin_list: list[Doujinshi] = []
+        self.pages = []
+
+    def try_loading(self, max_tries=3):
+        tries = 1
+        while tries <= max_tries:
+            try:
+                self.navigator.load(self.url)
+                self.doujin_list = self.load_doujin_list()
+                self.pages = self.load_pages_link()
+            except WebException.TimeoutException:
+                Logger.log_warn("timeout, trying again\n")
+                tries += 1
+                self.navigator.refresh()
+                continue
+        raise Exception(f"Failed to load {self.navigator.get_current_url()}")
+
+    def load_pages_link(self) -> list[WebElement]:
+        pages = self.navigator.find_all('.page-container li')
+        return pages
+
+    def load_doujin_list(self) -> list[Doujinshi]:
+        def get_children_link_text(parent: WebElement):
+            children = []
+            try:
+                for child in parent.find_elements(By.TAG_NAME, "a"):
+                    text = child.get_attribute("textContent")
+                    if text != "...":
+                        children.append(text.lower())
+            except Exception as e:
+                Logger.log_warn(f"get_children exception: {e}\n")
+            return children
+
+        titles = self.navigator.find_all(".lillie a", wait=True)
+        series = self.navigator.find_all(
+            "//table[@class='dj-desc']/tbody/tr[1]/td[2]", By.XPATH)
+        types = self.navigator.find_all(
+            "//table[@class='dj-desc']/tbody/tr[2]/td[2]", By.XPATH)
+        artists = self.navigator.find_all(".artist-list")
+        tags = self.navigator.find_all(".relatedtags")
+        dates = self.navigator.find_all(".date")
+
+        same_len = len(titles) == len(series) == len(
+            types) == len(artists) == len(tags) == len(dates)
+        error_message = f"titles:{len(titles)} series:{len(series)} types:{len(types)} artists:{len(artists)} tags:{len(tags)} dates:{len(dates)}"
+        assert same_len, error_message
+
+        doujin_list = []
+        for i, _ in enumerate(titles):
+            doujin = Doujinshi()
+            doujin.name = titles[i].text
+            try:
+                doujin.url = titles[i].get_attribute("href")
+            except Exception as e:
+                Logger.log_warn(f"url exception: {e}\n")
+            doujin.type = types[i].text.lower()
+            doujin.artists = get_children_link_text(artists[i])
+            doujin.series = get_children_link_text(series[i])
+            doujin.tags = get_children_link_text(tags[i])
+            doujin.date = ConvertDatetime(dates[i].text)
+            doujin_list.append(doujin)
+        return doujin_list
+
+    def get_next_page(self):
+        current_page: int = sys.maxsize
+        next_page_url = None
+        pages_str = "| "
+        for page in self.pages:
+            if page.text == "...":
+                pages_str += "... "
+                continue
+            try:
+                a_tag = page.find_element(By.TAG_NAME, "a")
+                page_num = int(a_tag.text)
+                if next_page_url is None and page_num > current_page:
+                    pages_str += f"[{page_num}] "
+                    current_page = page_num
+                    next_page_url = a_tag.get_attribute("href")
+                else:
+                    pages_str += f"{page_num} "
+            except WebException.NoSuchElementException:
+                pages_str += f"{page.text} "
+                current_page = int(page.text)
+            except Exception as e:
+                Logger.log_warn(f"Next page exception: {e}\n")
+                pass
+        pages_str += "|"
+        if next_page_url == None:
+            return None
+        Logger.log(f"{pages_str}\n")
+        return DoujinListPage(self.navigator, next_page_url)
 
 
 class DoujinIterator():
@@ -184,148 +430,33 @@ class DoujinIterator():
         navigator.load(url)
         self.navigator = navigator
         self.url = url
-
-    def load_web_elements(self) -> None:
-        tries = 1
-        while tries <= 3:
-            try:
-                titles = self.navigator.find_all(".lillie a", wait=True)
-                series = self.navigator.find_all(
-                    "//table[@class='dj-desc']/tbody/tr[1]/td[2]", By.XPATH)
-                types = self.navigator.find_all(
-                    "//table[@class='dj-desc']/tbody/tr[2]/td[2]", By.XPATH)
-                artists = self.navigator.find_all(".artist-list")
-                tags = self.navigator.find_all(".relatedtags")
-                dates = self.navigator.find_all(".date")
-                pages = self.navigator.find_all('.page-container li')
-
-                same_len = len(titles) == len(series) == len(
-                    types) == len(artists) == len(tags) == len(dates)
-                error_message = f"titles:{len(titles)} series:{len(series)} types:{len(types)} artists:{len(artists)} tags:{len(tags)} dates:{len(dates)}"
-                assert same_len, error_message
-                self.titles = titles
-                self.series = series
-                self.types = types
-                self.artists = artists
-                self.tags = tags
-                self.dates = dates
-                self.pages = pages
-                return
-            except WebException.TimeoutException:
-                Logger.log_warn("timeout, trying again\n")
-                tries += 1
-                self.navigator.refresh()
-        raise Exception(f"Failed to load {self.navigator.get_current_url()}")
+        self.current_page = DoujinListPage(self.navigator, self.url)
 
     def get_extra_doujin_info(self, doujin: Doujinshi):
         self.navigator.open_new_tab()
-        self.navigator.load(doujin.url)
+        doujin_page = DoujinPage(doujin.url, self.navigator)
         try:
-            doujin.groups.extend([l.text.lower()
-                                  for l in self.navigator.find_all("#groups a")])
-            doujin.characters.extend([l.text.lower()
-                                      for l in self.navigator.find_all("#characters a")])
+            doujin.groups.extend(doujin_page.load_groups())
+            doujin.characters.extend(doujin_page.load_characters())
         except Exception as e:
             Logger.log_warn(f"doujin info exception: {e}\n")
         self.navigator.close_tab()
 
-    def get_doujin(self, i: int) -> Doujinshi:
-        def ConvertDatetime(original_dt: str):
-            weirdDate = original_dt.split(" ")
-            try:
-                monthName = weirdDate[1]
-            except IndexError:
-                print(
-                    f"ConvertDatetime: Index Error\n original:{original_dt}\n weirdDate:{weirdDate}")
-                raise (IndexError)
-            if monthName == "Sept":
-                monthName = "Sep"
-            correctDate = f"{weirdDate[0]} {monthName} {weirdDate[2]} {weirdDate[3]}"
-            return datetime.strptime(correctDate, "%d %b %Y, %H:%M")
-
-        if self.navigator.get_current_url() != self.url:
-            raise (Exception("Invalid URL: Don't go to another page while iterating"))
-
-        title = self.titles[i]
-        artists = self.artists[i]
-        type = self.types[i]
-        series = self.series[i]
-        tags = self.tags[i]
-        date = self.dates[i].text
-
-        doujin = Doujinshi()
-        doujin.type = type.text.lower()
-        try:
-            doujin.url = title.get_attribute("href")
-        except Exception as e:
-            Logger.log_warn(f"url exception: {e}\n")
-        doujin.name = title.text
-        try:
-            for artist in artists.find_elements(By.TAG_NAME, "a"):
-                text = artist.get_attribute("textContent")
-                if text != "...":
-                    doujin.artists.append(text.lower())
-        except Exception as e:
-            Logger.log_warn(f"artist exception: {e}\n")
-        try:
-            for series_name in series.find_elements(By.TAG_NAME, "a"):
-                text = series_name.get_attribute("textContent")
-                if text != "...":
-                    doujin.series.append(text.lower())
-        except Exception as e:
-            Logger.log_warn(f"series exception: {e}\n")
-        try:
-            for tag in tags.find_elements(By.TAG_NAME, "a"):
-                text = tag.get_attribute("textContent")
-                if text != "...":
-                    doujin.tags.append(text.lower())
-        except Exception as e:
-            Logger.log_warn(f"tag exception: {e}\n")
-        doujin.date = ConvertDatetime(date)
-        return doujin
-
-    def next_page(self) -> tuple[int, bool]:
-        is_done = True
-        current_page: int = sys.maxsize
-        next_page_url = None
-        pages_str = "| "
-        for page in self.pages:
-            if page.text != "...":
-                try:
-                    a_tag = page.find_element(By.TAG_NAME, "a")
-                    page_num = int(a_tag.text)
-                    if next_page_url is None and page_num > current_page:
-                        pages_str += f"[{page_num}] "
-                        current_page = page_num
-                        next_page_url = a_tag.get_attribute("href")
-                        is_done = False
-                    else:
-                        pages_str += f"{page_num} "
-                except WebException.NoSuchElementException:
-                    pages_str += f"{page.text} "
-                    current_page = int(page.text)
-                except Exception as e:
-                    Logger.log_warn(f"Next page exception: {e}\n")
-                    pass
-            else:
-                pages_str += "... "
-        pages_str += "|"
-        if next_page_url is not None:
-            Logger.log(f"{pages_str}\n")
-            self.navigator.load(next_page_url)
-            self.url = next_page_url
-            self.load_web_elements()
-        return current_page, is_done
-
     def next(self):
-        self.load_web_elements()
-        is_done = False
-        while not is_done:
-            doujinCount = len(self.titles)
-            for i in range(doujinCount):
-                doujin = self.get_doujin(i)
+        while self.current_page:
+            self.current_page.try_loading()
+            for i, doujin in enumerate(self.current_page.doujin_list):
+                if i == 0:
+                    Logger.log(f"{doujin.date}\n")
                 yield (i, doujin)
-            _, is_done = self.next_page()
+            self.current_page = self.current_page.get_next_page()
+
+    def reload_page(self):
+        if self.current_page == None:
+            return
+        self.current_page.try_loading()
 
     def is_last_of_page(self, i: int) -> bool:
-        return i == len(self.titles) - 1
+        if self.current_page == None:
+            return False
+        return i == len(self.current_page.doujin_list) - 1

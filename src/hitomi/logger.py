@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 from enum import Enum
 from functools import total_ordering
@@ -46,13 +46,10 @@ class Logger():
                 f"{DAY}.{MONTH}.{YEAR}-{HOUR}.{MINUTE}.{SECOND}")
             log_filename = f"log-{timestamp}.txt"
         LOGS_DIR = "logs"
-        try:
-            os.makedirs(LOGS_DIR)
-        except FileExistsError:
-            pass
-        cls.output_file = open(os.path.join(LOGS_DIR, log_filename),
-                               "w",
-                               encoding="utf-8")
+        Path(LOGS_DIR).mkdir(exist_ok=True)
+        cls.output_file = Path(LOGS_DIR, log_filename).open(
+            "w",
+            encoding="utf-8")
         cls.current_log_level = LogLevel.NORMAL
         cls.started = True
 
